@@ -1,0 +1,4 @@
+*.sw[pq]
+/.idea/
+/local/
+/tmp
