@@ -1,0 +1,145 @@
+# An extensible framework to configure and hierarchical element structure
+
+This package provides a framework usable to compose hierarchical 
+organized elements in a Go program, like a file hierarchy
+
+
+```text
+{{execute}{go}{run}{../../examples/dirtree}{<extract>}{tree output}}
+```
+
+Similar to [ginkgo](https://github.com/onsi/ginkgo), every element
+, like filesystem, directory, file or content, is described by a function accepting some basic element settings for the element creation and an anonymous function used to configure nested elements or refine the outer ones.
+
+The code creating the example structure above looks like this
+(see [examples/dirtree](examples/dirtree/main.go))
+
+```go
+{{include}{../../examples/dirtree/main.go}{structure code}}
+```
+
+It uses a default filesystem environment implemented
+using this framework.
+
+```go
+{{include}{../../examples/dirtree/main.go}{environment}}
+```
+
+Error handling is done by the framework. If somewhere in the
+hierarchical code structure an error occurs the execution
+is aborted. The `Compose` call on the method gathers the error
+and provides it to its caller. As we will see later there are also
+other possibilities for error creation.
+
+If in a code block non framework functions are called, which provide an error, it can be propagated with `env.FailIfError(err)` and related methods.
+
+## Using the framework for creating test environments
+
+This framework was mainly intended to be used for the creating
+of an object environment for tests, but is can be used in regular programs, also.
+
+But there is a special support for the creation of test cases.
+When creating an environment `FailureHandler` handler can be configured(as option for the `New` methods).
+
+The package `testenv` supports the creation of environments prepared to be used with the `ginkgo` framework. Every 
+composed environment type can be used.
+
+Here, the failure handling is left to the ginkgo environment, using the `Expect` logic. A `Compose` method is not required.
+The `env` methods can directly be used. Any occurring error
+is handled with `ExpectWithOffset(skip, err).To(Succeed())`
+
+If an environment incorporationg the `filesystem` functionality
+is used, the environment is automaticlly configured with a 
+temporary filesystem living until `Cleanup` is called on the
+environment.
+
+This filesystem can then be enriched by further environment options:
+- With the option `TestData()` a package-local folder `testdata` will be mounted (under the same name) on this temporary filesystem. Optionally, another path can be given as argument.
+ This part of the filesystem is unmutable, so tests cannot change your testdata provided as part of the sources.
+- With `MutableTestData()`, the content wil be mounted in a mutable way, by using a layered filesystem based on the provided 
+  testdata folder and a mutable memory layer on-top.
+- With `ProjectTestData(source)` any folder of your project can be used as test data.
+- And with `ModifiableProjectTestData(source)` you again get a mutable layer on-top of the read-only project folder.
+
+The `filesystem` functionality is based on a virtual filesystem
+provided by the [`vfs` package](https://github.com/mandelsoft/vfs).
+Therefore, the code using filesystem operations must use the 
+appropraite functions and types from the vfs package (like `vfs.File` instead of `os.File`)
+
+## Implementing environments with new functional elements.
+
+The framework is designed to be extensible. Environment functions 
+are organized in functional groups (like the one provided by the `filesystem` package)
+
+Every such package provides an own `Group` type with the locally supported elements and environment functions.
+
+
+A method `NewGroup(epi.EnvState)` must be offered, to create an instance for such a embeddable group. Both together, will later
+be used to compose new environment types including arbitrary functional groups.
+
+The group must refer to the internal environment state 
+kept in `epi.EnvState`. It is later used by all the new environment functions and elements.
+
+```go
+{{include}{../../filesystem/group.go}{group}}
+```
+
+To be able to access the own group from any possible environment composition
+every group should prvide an own interface with a unique private method
+returning the `Group`, which is implemented by the `Group`object.
+
+```go
+{{include}{../../filesystem/mapper.go}{mapper}}
+```
+
+A public mapping function can then be offered using this interface 
+to map any environment incorporating this group to the group object.
+
+A final `Environment` can then be composed by a separate
+environment type by embedding the desired group types, and optionally one base environment type, similar to the
+preconfigured filesystem environment and group.
+
+```go
+{{include}{../../filesystem/env.go}{environment}}
+```
+
+It incorporates the `common.Environment` and the additional `FilesystemGroup`. To support this embedding the functional
+areas should provide besides the standard type `Group`, uniquely named types, also.
+
+Every environment type must at least incorporate the `epi.Group`.
+This automatically the case, if another base environment is included.
+
+
+When creating a preconfigured environment, the same `epi.EnvState` must be propagated to every nested Group and the optional base environment.
+
+```go
+{{include}{../../filesystem/env.go}{constructor}}
+```
+
+A method `New(...epi.Option)` should be offered as shown above, to create a new instance for such a preconfigured environment.
+
+Any group might provide such a default environment including its own group. But new combinations can arbitrarily be created elsewhere by using the standard types and constructors provided by the functional groups.
+
+### Implementing new groups functions
+
+the package `epi` contains all the central types and functions of the core
+framework, it stands for **e**nvironment **p**rogramming **i**nterface.
+
+In the previous section we have already seen some basic types and functions,
+like `epi.EnvState`. The state implements the core state and failure handling to support hierarchically nested elements. It is not intended to be used by an environment user, but is exclusively for implementors of new functional groups.
+Therefore, all those related types and funtions are in a separate package and not
+exposed by the user-facing `composer` main package.
+
+An environment always ises a comman mechanics. Every nesting level
+is provided ba a so-calle `epi.Frame`, representing the state required
+for this level and potentially by nested functions and elements.
+
+To be more polymorph, and enable elements (or environment methods) to work
+together with different outer levels, environments should offer and require
+abstract state interfaces, providing access to information required by 
+nested elements. For example the filesystem element supports a `FilesystemState` interface providing access to the surrounding `vfs.FileSystem`. This way nested elements requireing a filesystem can be embedded in all kinds of elements
+providing such a state.
+
+To achieve this, a frame may expose state, either by implementing directly such an interface, or by implementing the `epi.StateProvider` interface.
+
+On the other side, every element/environment function, may restrict itself to require some outer state. The `epi` package offers functionality to request such state..

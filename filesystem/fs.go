@@ -13,6 +13,11 @@ type _fsState struct {
 	fs vfs.FileSystem
 }
 
+var (
+	_ FilesystemState = (*_fsState)(nil)
+	_ DirectoryState  = (*_fsState)(nil)
+)
+
 func (f *_fsState) GetFilesystem() vfs.FileSystem {
 	return f.fs
 }
@@ -27,11 +32,19 @@ type fsFrame struct {
 	_fsState
 }
 
+func (f *fsFrame) xSetup(epi.None) (epi.Frame, error) {
+	return f, nil
+}
+
 var (
 	_ FilesystemState = (*fsFrame)(nil)
 	_ DirectoryState  = (*fsFrame)(nil)
 )
 
-func (g *Group) WithFileSystem(fs vfs.FileSystem, f epi.Block) {
-	epi.EvaluateWithState[epi.None](1, g.env, "", (&fsFrame{_fsState: _fsState{fs: fs}}).Setup, f)
+func (g *Group) FileSystem(fs vfs.FileSystem, f ...epi.Block) {
+	if len(f) == 0 {
+		g.env.AddState(&_fsState{fs: fs})
+	} else {
+		epi.EvaluateWithState[epi.None](1, g.env, "", &fsFrame{_fsState: _fsState{fs: fs}}, f...)
+	}
 }

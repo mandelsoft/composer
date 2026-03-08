@@ -4,8 +4,6 @@ import (
 	"github.com/mandelsoft/composer/epi"
 )
 
-type CommonEnvironment = Environment
-
 type Environment struct {
 	env epi.EnvState
 	epi.Group

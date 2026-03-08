@@ -23,6 +23,7 @@ type EnvState interface {
 	AddState(state any)
 	GetFrames() []Frame
 	FailIfError(skip int, err error)
+	FailIfErrorf(skip int, err error, msg string, args ...interface{})
 	Compose(block Block) (err error)
 }
 
@@ -72,6 +73,14 @@ func (e *_envstate) GetFrames() []Frame {
 
 func (e *_envstate) FailIfError(skip int, err error) {
 	if err != nil {
+		e.err.Add(err)
+		e.failure(skip+1, e, err)
+	}
+}
+
+func (e *_envstate) FailIfErrorf(skip int, err error, msg string, args ...interface{}) {
+	if err != nil {
+		err = errors.Wrap(err, fmt.Sprintf(msg, args...))
 		e.err.Add(err)
 		e.failure(skip+1, e, err)
 	}
@@ -167,7 +176,9 @@ func GetState[S any](p EnvStateProvider, ext ...StateExtractor[S]) (S, bool) {
 	return _nil, false
 }
 
-type FrameProvider[S any] = func(S) (Frame, error)
+type FrameProvider[S any] interface {
+	Setup(S) (Frame, error)
+}
 
 func splitPath(s string) (string, string) {
 	idx := strings.LastIndex(s, "/")
@@ -201,8 +212,15 @@ func EvaluateWithState[S any](skip int, e EnvState, msg string, p FrameProvider[
 	if !ok {
 		e.FailIfError(skip, fmt.Errorf(msg))
 	}
-	frame, err := p(s)
+	frame, err := p.Setup(s)
 	e.FailIfError(skip, err)
+	if frame == nil {
+		// no extended self for embedded default implementations,
+		// therefore we default to the final top-level object
+		if fr, ok := any(p).(Frame); ok {
+			frame = fr
+		}
+	}
 	if general.Optional(f...) != nil {
 		e.With(skip, frame, f...)
 	}

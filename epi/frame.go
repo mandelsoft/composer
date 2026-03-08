@@ -37,7 +37,9 @@ func (e *DefaultFrame[S]) Close() error {
 }
 
 func (e *DefaultFrame[S]) Setup(S) (Frame, error) {
-	return e, nil
+	// no frame provided, we don't have an extended self in Go!!!!
+	// therefore returning e would be contra-productive.
+	return nil, nil
 }
 
 func EmptyFrameProvider(None) (Frame, error) {
@@ -49,8 +51,4 @@ func EmptyFrameProvider(None) (Frame, error) {
 type FrameSetup[S any] interface {
 	Frame
 	Setup(S) (Frame, error)
-}
-
-func AsProvider[S any](s FrameSetup[S]) FrameProvider[S] {
-	return s.Setup
 }

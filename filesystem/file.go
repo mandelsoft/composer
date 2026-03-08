@@ -52,5 +52,5 @@ func (b *Group) File(name string, mode vfs.FileMode, f ...epi.Block) {
 	if mode == 0 {
 		mode = 0660
 	}
-	epi.EvaluateWithState[DirectoryState](1, b.env, "directory required", (&fileFrame{name: name, mode: mode}).Setup, f...)
+	epi.EvaluateWithState[DirectoryState](1, b.env, "directory required", &fileFrame{name: name, mode: mode}, f...)
 }

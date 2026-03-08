@@ -5,12 +5,16 @@ import (
 	"github.com/mandelsoft/composer/epi"
 )
 
-type FilesystemEnvironment = Environment
+// --- begin environment ---
 
 type Environment struct {
-	common.CommonEnvironment
+	common.Environment
 	FilesystemGroup
 }
+
+// --- end environment ---
+
+// --- begin constructor ---
 
 func New(opts ...epi.Option) (*Environment, error) {
 	e := epi.NewEnvState(opts...)
@@ -18,6 +22,8 @@ func New(opts ...epi.Option) (*Environment, error) {
 	if err != nil {
 		return nil, err
 	}
-	env := &Environment{CommonEnvironment: *c, FilesystemGroup: *NewGroup(e)}
+	env := &Environment{Environment: *c, FilesystemGroup: *NewGroup(e)}
 	return epi.WithOptionsApplied(env, opts...)
 }
+
+// --- end constructor ---

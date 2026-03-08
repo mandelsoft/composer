@@ -29,10 +29,10 @@ func (e *writer) Setup(s Writable) (epi.Frame, error) {
 }
 
 func (b *Group) StringContent(s string) {
-	epi.EvaluateLeafWithState[Writable](1, b.env, "", epi.AsProvider(&writer{data: []byte(s)}))
+	epi.EvaluateLeafWithState[Writable](1, b.env, "", &writer{data: []byte(s)})
 }
 
 func (b *Group) ByteContent(s []byte) {
-	epi.EvaluateLeafWithState[Writable](1, b.env, "", epi.AsProvider(&writer{data: s}))
+	epi.EvaluateLeafWithState[Writable](1, b.env, "", &writer{data: s})
 
 }

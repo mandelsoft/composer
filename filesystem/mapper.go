@@ -4,6 +4,8 @@ import (
 	"github.com/mandelsoft/composer/epi"
 )
 
+// --- begin mapper ---
+
 type GroupMapper interface {
 	maptoFilesystemGroup() *Group
 }
@@ -14,3 +16,5 @@ func MapToGroup(e epi.Environment) *Group {
 	}
 	return nil
 }
+
+// --- end mapper ---

@@ -36,7 +36,7 @@ func (f *stateFrame) GetState() any {
 
 // With adds some state to the environment processing.
 func (g *Group) With(state any, body Block) {
-	EvaluateWithState[None](1, g.env, "", (&stateFrame{state: state}).Setup, body)
+	EvaluateWithState[None](1, g.env, "", &stateFrame{state: state}, body)
 }
 
 // With adds some state to the environment processing.
@@ -44,14 +44,24 @@ func (g *Group) AddState(state any) {
 	g.env.AddState(state)
 }
 
-// FailIfError fails if a nin-nil error is given.
+// FailIfError fails if a non-nil error is given.
 func (g *Group) FailIfError(err error) {
 	g.env.FailIfError(1, err)
+}
+
+// FailIfErrorf fails if a non-nil error is given.
+func (g *Group) FailIfErrorf(err error, msg string, args ...interface{}) {
+	g.env.FailIfErrorf(1, err, msg, args...)
 }
 
 // FailIfErrorWithOffset fails if a nin-nil error is given.
 func (g *Group) FailIfErrorWithOffset(skip int, err error) {
 	g.env.FailIfError(skip+1, err)
+}
+
+// FailIfErrorWithOffsetf fails if a nin-nil error is given.
+func (g *Group) FailIfErrorWithOffsetf(skip int, err error, msg string, args ...interface{}) {
+	g.env.FailIfErrorf(skip+1, err, msg, args...)
 }
 
 func (g *Group) Compose(block Block) (err error) {

@@ -9,6 +9,8 @@ type Environment interface {
 
 	FailIfError(error)
 	FailIfErrorWithOffset(skip int, err error)
+	FailIfErrorf(err error, msg string, args ...interface{})
+	FailIfErrorWithOffsetf(skip int, err error, msg string, args ...interface{})
 }
 
 // EnvironmentFactory is the signature of a typical New

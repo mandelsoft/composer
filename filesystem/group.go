@@ -6,6 +6,7 @@ import (
 
 type FilesystemGroup = Group
 
+// --- begin group ---
 type Group struct {
 	env epi.EnvState
 }
@@ -19,3 +20,5 @@ func NewGroup(env epi.EnvState) *Group {
 func (g *Group) maptoFilesystemGroup() *Group {
 	return g
 }
+
+// --- end group ---

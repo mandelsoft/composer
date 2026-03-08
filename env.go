@@ -1,3 +1,4 @@
+//go:generate go tool mdref --list doc/src .
 package composer
 
 import (
