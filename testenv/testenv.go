@@ -18,7 +18,7 @@ func New[E epi.Environment](f epi.EnvironmentFactory[E], opts ...epi.Option) (E,
 		return _nil, err
 	}
 
-	return f(append([]epi.Option{filesystem.Filesystem(tempfs), epi.FailureHandler(ExpectFailureHandler)}, opts...)...)
+	return f(append([]epi.Option{filesystem.Filesystem(tempfs, true), epi.FailureHandler(ExpectFailureHandler)}, opts...)...)
 }
 
 func ExpectFailureHandler(skip int, env epi.EnvState, err error) {

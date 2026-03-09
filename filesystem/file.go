@@ -5,6 +5,7 @@ import (
 
 	"github.com/mandelsoft/composer/common"
 	"github.com/mandelsoft/composer/epi"
+	. "github.com/mandelsoft/composer/epi/contraints"
 	"github.com/mandelsoft/vfs/pkg/vfs"
 )
 
@@ -13,6 +14,7 @@ type fileState interface {
 }
 
 type fileFrame struct {
+	epi.DefaultFrame[DirectoryState]
 	name string
 	mode vfs.FileMode
 	dir  DirectoryState
@@ -32,7 +34,7 @@ func (f *fileFrame) GetWriter() io.Writer {
 	return f.file
 }
 
-func (f *fileFrame) Setup(s DirectoryState) (epi.Frame, error) {
+func (f *fileFrame) Setup(elem string, s DirectoryState) (epi.Frame, error) {
 	var err error
 	f.dir = s
 	fs, dir := s.GetDir()
@@ -41,7 +43,7 @@ func (f *fileFrame) Setup(s DirectoryState) (epi.Frame, error) {
 	if err != nil {
 		return nil, err
 	}
-	return f, nil
+	return f.DefaultFrame.Setup(elem, s)
 }
 
 func (f *fileFrame) Close() error {
@@ -52,5 +54,6 @@ func (b *Group) File(name string, mode vfs.FileMode, f ...epi.Block) {
 	if mode == 0 {
 		mode = 0660
 	}
-	epi.EvaluateWithState[DirectoryState](1, b.env, "directory required", &fileFrame{name: name, mode: mode}, f...)
+	cs := Or(TopLevel, Not(FrameTypeConstraint[*fileFrame]))
+	epi.EvaluateWithState[DirectoryState](1, b.env, "File", "directory required", &fileFrame{name: name, mode: mode}, nil, cs, f)
 }

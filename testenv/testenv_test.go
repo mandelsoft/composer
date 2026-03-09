@@ -13,7 +13,11 @@ var _ = Describe("Testenv Test Environment", func() {
 		It("creates env with a temp fs with mounted test data", func() {
 			// create a filesystem environment for a temporary folder
 			// with a gomega failure handling and a mounted test data from testdata folder.
+			// --- begin creation ---
 			env := Must(testenv.New(filesystem.New, testenv.TestData()))
+			// --- end creation ---
+
+			defer env.Cleanup()
 
 			env.Directory("/testdata/test", 0770, func() {
 				Expect(env.ReadFile("data")).To(Equal([]byte("this is a test file")))

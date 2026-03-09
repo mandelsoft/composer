@@ -19,24 +19,13 @@ func (g *Group) getEnvState() EnvState {
 	return g.env
 }
 
-type stateFrame struct {
-	DefaultFrame[None]
-	state any
-}
-
-var _ StateProvider = (*stateFrame)(nil)
-
-func (f *stateFrame) Setup(None) (Frame, error) {
-	return f, nil
-}
-
-func (f *stateFrame) GetState() any {
-	return f.state
-}
-
 // With adds some state to the environment processing.
-func (g *Group) With(state any, body Block) {
-	EvaluateWithState[None](1, g.env, "", &stateFrame{state: state}, body)
+func (g *Group) With(state any, body ...Block) {
+	EvaluateWithState[None](1, g.env, "With", "", &stateFrame{state: state}, nil, nil, body)
+}
+
+func (g *Group) Cleanup() {
+	g.env.FailIfError(1, g.env.Cleanup())
 }
 
 // With adds some state to the environment processing.

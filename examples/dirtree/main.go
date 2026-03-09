@@ -50,7 +50,7 @@ func main() {
 	// --- end structure code ---
 
 	root := utils.MapFSTree(fs, "/")
-	fmt.Printf("// --- begin tree output ---")
+	fmt.Printf("// --- begin tree output ---\n")
 	fmt.Printf("%s\n", utils.MapNodetoASCII(root))
-	fmt.Printf("// --- end tree output ---")
+	fmt.Printf("// --- end tree output ---\n")
 }

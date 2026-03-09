@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/mandelsoft/composer/epi"
+	"github.com/mandelsoft/goutils/general"
 	"github.com/mandelsoft/vfs/pkg/composefs"
 	"github.com/mandelsoft/vfs/pkg/layerfs"
 	"github.com/mandelsoft/vfs/pkg/memoryfs"
@@ -13,8 +14,10 @@ import (
 	"github.com/mandelsoft/vfs/pkg/vfs"
 )
 
+// --- begin filesystem option ---
+
 type fsOpt struct {
-	fs vfs.FileSystem
+	_fsState
 }
 
 func (o *fsOpt) ApplyTo(e epi.Environment) error {
@@ -22,12 +25,14 @@ func (o *fsOpt) ApplyTo(e epi.Environment) error {
 	if g == nil {
 		return epi.ErrGroupNotSupported("filesystem")
 	}
-	e.AddState(&_fsState{o.fs})
+	e.AddState(&o._fsState)
 	return nil
 }
 
-func Filesystem(fs vfs.FileSystem) epi.Option {
-	return &fsOpt{fs}
+// --- end filesystem option ---
+
+func Filesystem(fs vfs.FileSystem, cleanup ...bool) epi.Option {
+	return &fsOpt{_fsState{saveFS(fs, general.Optional(cleanup...))}}
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -39,44 +44,46 @@ type mountOpt struct {
 }
 
 func (o *mountOpt) ApplyTo(e epi.Environment) error {
+	var err error
+
 	g := MapToGroup(e)
 	if g == nil {
 		return epi.ErrGroupNotSupported("filesystem")
 	}
 
+	mi := mountInfo{fs: o.fs}
+	for _, m := range o.modes {
+		mi, err = m.TransformFilesystem(mi)
+		if err != nil {
+			return err
+		}
+	}
+	fs := saveFS(mi.fs, mi.cleanup)
+
 	if o.path == "" {
-		e.AddState(&_fsState{o.fs})
+		e.AddState(&_fsState{fs: fs})
 		return nil
 	}
 
 	var c *composefs.ComposedFileSystem
 	var t FilesystemState
-	var err error
 
-	fs := o.fs
-	for _, m := range o.modes {
-		fs, err = m.TransformFileSystem(fs)
-		if err != nil {
-			return err
-		}
-	}
-
-	s, ok := epi.GetState[*_fsState](g.env)
+	s, _, ok := epi.GetState[*_fsState](g.env)
 	if !ok {
-		t, ok = epi.GetState[FilesystemState](g.env)
+		t, _, ok = epi.GetState[FilesystemState](g.env)
 		if ok {
-			s = &_fsState{t.GetFilesystem()}
+			s = &_fsState{saveFS(t.GetFilesystem(), false)}
 		} else {
-			c = composefs.New(osfs.OsFs)
-			s = &_fsState{c}
+			s = &_fsState{fs: osfs.OsFs}
 		}
 		e.AddState(s)
-	} else {
-		if c, ok = s.fs.(*composefs.ComposedFileSystem); !ok {
-			c = composefs.New(s.fs)
-			s = &_fsState{c}
-			e.AddState(s)
-		}
+	}
+	// Hmm, is it ok to modify an outer FS?
+	c, ok = effFS(s.fs).(*composefs.ComposedFileSystem)
+	if !ok {
+		c = composefs.New(saveFS(s.fs, false))
+		s = &_fsState{fs: c}
+		e.AddState(s)
 	}
 	err = c.MkdirAll(o.path, vfs.ModePerm)
 	if err != nil {
@@ -85,8 +92,18 @@ func (o *mountOpt) ApplyTo(e epi.Environment) error {
 	return c.Mount(o.path, fs)
 }
 
+type mountInfo struct {
+	fs      vfs.FileSystem
+	cleanup bool
+}
+
+func (i mountInfo) TransformedFilesystem(fs vfs.FileSystem, err error) (mountInfo, error) {
+	i.fs = fs
+	return i, err
+}
+
 type MountMode interface {
-	TransformFileSystem(fs vfs.FileSystem) (vfs.FileSystem, error)
+	TransformFilesystem(mountInfo) (mountInfo, error)
 }
 
 // Mount mounts a filesystem at a given path with optional [MountMode]s.
@@ -97,10 +114,10 @@ func Mount(fs vfs.FileSystem, path string, modes ...MountMode) epi.Option {
 	return &mountOpt{fs: fs, path: path, modes: slices.Clone(modes)}
 }
 
-type mountmode func(fs vfs.FileSystem) (vfs.FileSystem, error)
+type mountmode func(mountInfo) (mountInfo, error)
 
-func (m mountmode) TransformFileSystem(fs vfs.FileSystem) (vfs.FileSystem, error) {
-	return m(fs)
+func (m mountmode) TransformFilesystem(i mountInfo) (mountInfo, error) {
+	return m(i)
 }
 
 // Normal uses the filesystem as given without transformation.
@@ -113,24 +130,31 @@ var Readonly = mountmode(readonlyMode)
 // which is therefore not modified.
 var Shadowed = mountmode(shadowedMode)
 
+// Cleanup calls Cleanup of filesystem after use.
+var Cleanup = mountmode(cleanupMode)
+
 // Projected creates a projection of the filesystem to a given path.
 func Projected(path string) MountMode {
-	return mountmode(func(fs vfs.FileSystem) (vfs.FileSystem, error) {
-		return projectionfs.New(fs, path)
+	return mountmode(func(i mountInfo) (mountInfo, error) {
+		return i.TransformedFilesystem(projectionfs.New(i.fs, path))
 	})
 }
 
-func readonlyMode(fs vfs.FileSystem) (vfs.FileSystem, error) {
-	return readonlyfs.New(fs), nil
+func readonlyMode(i mountInfo) (mountInfo, error) {
+	return i.TransformedFilesystem(readonlyfs.New(i.fs), nil)
 }
 
-func shadowedMode(fs vfs.FileSystem) (vfs.FileSystem, error) {
+func shadowedMode(i mountInfo) (mountInfo, error) {
 	layer := memoryfs.New()
-	lfs := layerfs.New(layer, fs)
-
-	return lfs, nil
+	lfs := layerfs.New(layer, i.fs)
+	return i.TransformedFilesystem(lfs, nil)
 }
 
-func normalMode(fs vfs.FileSystem) (vfs.FileSystem, error) {
-	return fs, nil
+func normalMode(i mountInfo) (mountInfo, error) {
+	return i, nil
+}
+
+func cleanupMode(i mountInfo) (mountInfo, error) {
+	i.cleanup = true
+	return i, nil
 }

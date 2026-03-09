@@ -5,6 +5,8 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/mandelsoft/composer/epi/contraints"
+	"github.com/mandelsoft/composer/epi/internal"
 	"github.com/mandelsoft/goutils/errors"
 	"github.com/mandelsoft/goutils/exception"
 	"github.com/mandelsoft/goutils/general"
@@ -12,13 +14,14 @@ import (
 
 type Block = func()
 
-type StateExtractor[S any] func(e EnvState) (S, bool)
+type StateExtractor[S any] func(e EnvState) (S, []Frame, bool)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 type EnvState interface {
 	Option
 	EnvStateProvider
+	Cleanup() error
 	With(skip int, frame Frame, body ...Block)
 	AddState(state any)
 	GetFrames() []Frame
@@ -55,7 +58,7 @@ func NewEnvState(opts ...Option) EnvState {
 			return p.getEnvState()
 		}
 	}
-	return &_envstate{frames: []Frame{initialFrame{}}, failure: general.OptionalDefaulted(FailWithExceptionLocation, fh), err: errors.ErrList()}
+	return &_envstate{frames: []Frame{&initialFrame{}}, failure: general.OptionalDefaulted(FailWithExceptionLocation, fh), err: errors.ErrList()}
 }
 
 func (e2 *_envstate) ApplyTo(e Environment) error {
@@ -86,10 +89,28 @@ func (e *_envstate) FailIfErrorf(skip int, err error, msg string, args ...interf
 	}
 }
 
-func (e *_envstate) dropUntil(f Frame) {
-	for e.frames[len(e.frames)-1] != f {
+func (e *_envstate) Cleanup() error {
+	return e.dropUntil(nil) // drop state frames o top of element frames
+}
+
+func (e *_envstate) dropUntil(f Frame) error {
+	list := errors.ErrorList{}
+	for {
+		if f != nil {
+			if e.frames[len(e.frames)-1] == f {
+				break
+			}
+		} else {
+			// if no frame ids givven cleanup pure state frames
+			// until the next outer element frame is reached
+			if !IsStateFrame(e.frames[len(e.frames)-1]) {
+				break
+			}
+		}
+		list.Add(e.frames[len(e.frames)-1].Close())
 		e.frames = e.frames[:len(e.frames)-1]
 	}
+	return list.Result()
 }
 
 func (e *_envstate) AddState(state any) {
@@ -105,15 +126,16 @@ func (e *_envstate) exec(body ...Block) {
 }
 
 func (e *_envstate) cleanup(skip int, frame Frame) {
-	e.dropUntil(frame)
+	list := errors.ErrorList{}
+	list.Add(e.dropUntil(frame))
 	e.frames = e.frames[:len(e.frames)-1]
-	err := frame.Close()
+	list.Add(frame.Close())
 	if e.err.Len() > 0 {
 		// regular failure
-		e.FailIfError(skip+1, err)
+		e.FailIfError(skip+1, list.Result())
 	} else {
 		// already in error handling
-		e.err.Add(err)
+		e.err.Add(list.Entries()...)
 	}
 }
 
@@ -136,7 +158,9 @@ func (e *_envstate) Compose(block Block) (err error) {
 	defer func() {
 		e.err = old
 	}()
-	return exception.Catch(block)
+	return exception.Catch(func() {
+		EvaluateWithState[None](1, e, "Compose", "", &dummyFrame{}, nil, nil, []Block{block})
+	})
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -148,36 +172,37 @@ func GetEnvState(a any) EnvState {
 	return nil
 }
 
-func GetState[S any](p EnvStateProvider, ext ...StateExtractor[S]) (S, bool) {
+func GetFrameState[S any](frame Frame) (S, bool) {
+	return internal.GetFrameState[S](frame)
+}
+
+func GetState[S any](p EnvStateProvider, ext ...StateExtractor[S]) (S, []Frame, bool) {
 	e := p.getEnvState()
 	var _nil S
+	var found []Frame
 
 	f := general.Optional(ext...)
 	if f != nil {
-		s, ok := f(e)
+		s, found, ok := f(e)
 		if ok {
-			return s, true
+			return s, found, true
 		}
 	}
 	frames := e.GetFrames()
 	for i := len(frames) - 1; i >= 0; i-- {
-		var t any = frames[i]
-		for t != nil {
-			if s, ok := t.(S); ok {
-				return s, true
-			}
-			if p, ok := t.(StateProvider); ok {
-				t = p.GetState()
-			} else {
-				break
-			}
+		if !IsStateFrame(frames[i]) && !IsDummyFrame(frames[i]) {
+			found = append(found, frames[i])
+		}
+		s, ok := GetFrameState[S](frames[i])
+		if ok {
+			return s, found, true
 		}
 	}
-	return _nil, false
+	return _nil, nil, false
 }
 
 type FrameProvider[S any] interface {
-	Setup(S) (Frame, error)
+	Setup(name string, state S) (Frame, error)
 }
 
 func splitPath(s string) (string, string) {
@@ -206,14 +231,17 @@ func CallerInfo(skip int, adjust ...int) string {
 	return ""
 }
 
-func EvaluateWithState[S any](skip int, e EnvState, msg string, p FrameProvider[S], f ...Block) {
+func EvaluateWithState[S any](skip int, e EnvState, name, msg string, p FrameProvider[S], ext StateExtractor[S], cs contraints.Constraint, f []Block) {
 	skip++
-	s, ok := GetState[S](e)
+	s, frames, ok := GetState[S](e, ext)
 	if !ok {
-		e.FailIfError(skip, fmt.Errorf(msg))
+		e.FailIfError(skip, fmt.Errorf("%s: %s", name, msg))
 	}
-	frame, err := p.Setup(s)
-	e.FailIfError(skip, err)
+	if cs != nil {
+		e.FailIfError(skip, errors.Wrap(cs(frames), name))
+	}
+	frame, err := p.Setup(name, s)
+	e.FailIfError(skip, errors.Wrap(err, name))
 	if frame == nil {
 		// no extended self for embedded default implementations,
 		// therefore we default to the final top-level object
@@ -226,6 +254,6 @@ func EvaluateWithState[S any](skip int, e EnvState, msg string, p FrameProvider[
 	}
 }
 
-func EvaluateLeafWithState[S any](skip int, e EnvState, msg string, p FrameProvider[S]) {
-	EvaluateWithState[S](skip+1, e, msg, p, nil)
+func EvaluateLeafWithState[S any](skip int, e EnvState, name, msg string, p FrameProvider[S], ext StateExtractor[S], cs contraints.Constraint) {
+	EvaluateWithState[S](skip+1, e, name, msg, p, ext, cs, nil)
 }

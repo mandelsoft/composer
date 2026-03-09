@@ -3,8 +3,9 @@ package epi
 type Environment interface {
 	EnvStateProvider
 	Compose(block Block) error
+	Cleanup()
 
-	With(state any, body Block)
+	With(state any, body ...Block)
 	AddState(state any)
 
 	FailIfError(error)
