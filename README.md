@@ -84,7 +84,7 @@ Therefore, an own `testenv.New` function is provided
   			env := Must(testenv.New(filesystem.New, testenv.TestData()))
 ```
 
-It accepts the Ǹew function of an environment type, which should be
+It accepts the `New` function of an environment type, which should be
 configured to be usable as test environment (here, the default filesystem
 environment). Additionally, environment
 options can be passed, for example the options described below, used
@@ -97,7 +97,7 @@ is handled with `ExpectWithOffset(skip, err).To(Succeed())`
 If an environment incorporating the `filesystem` functionality
 is used, the environment is automatically configured with a 
 temporary filesystem living until `Cleanup` is called on the
-environment. (Use defer or a `AfterEach`section)
+environment. (Use defer or a `AfterEach` section)
 
 This filesystem can then be enriched by further environment options:
 - With the option `TestData()` a package-local folder `testdata` will be mounted (under the same name) on this temporary filesystem. Optionally, another path can be given as argument.
@@ -245,14 +245,14 @@ environment type by embedding the desired group types, and optionally one base e
 preconfigured filesystem environment and group.
 
 ```go
-
+  
 type Environment struct {
 	common.Environment
 	FilesystemGroup
 }
 ```
 
-THis example incorporates the `common.Environment` and the additional `FilesystemGroup`. To support this embedding the functional
+This example incorporates the `common.Environment` and the additional `FilesystemGroup`. To support this embedding the functional
 areas should provide besides the standard type `Group`, uniquely named types, also.
 
 Every environment type must at least incorporate the `epi.Group`, which 
@@ -263,7 +263,7 @@ This is automatically the case, if another base environment is included.
 When creating a preconfigured environment, the same `epi.EnvState` must be propagated to every nested Group and the optional base environment.
 
 ```go
-
+  
 func New(opts ...epi.Option) (*Environment, error) {
 	e := epi.NewEnvState(opts...)
 	c, err := common.New(e)
@@ -275,7 +275,10 @@ func New(opts ...epi.Option) (*Environment, error) {
 }
 ```
 
-A method `New(...epi.Option)` should be offered as shown above, to create a new instance for such a preconfigured environment.
+A method `New(...epi.Option)` should be offered as shown above, to create a new instance for such a preconfigured environment. The options must not be passed to the constructor of
+a base environment, except the environment state. Instead, they should be applied
+to the finally created environment to assure, that all groups potentially
+required by the options are already available.
 
 Any group might provide such a default environment including its own group. But new combinations can arbitrarily be created elsewhere by using the standard types and constructors provided by the functional groups.
 
@@ -341,7 +344,7 @@ func (b *Group) Directory(name string, mode vfs.FileMode, f ...epi.Block) {
 	if mode == 0 {
 		mode = 0660
 	}
-	cs := Or(TopLevel, DirectEmbedding(StateTypeConstraint[DirectoryState]))
+	cs := Or(StateFrame, DirectEmbedding(StateTypeConstraint[DirectoryState]))
 	epi.EvaluateWithState[DirectoryState](1, b.env, "Directory", "directory required", &dirFrame{name: name, mode: mode}, nil, cs, f)
 }
 ```
@@ -414,11 +417,11 @@ a directory can also be embedded into a filesystem element.
 Optionally, a further embedding constraint can be given:
 
 ```go
-  cs := Or(TopLevel, DirectEmbedding(StateTypeConstraint[DirectoryState]))
+  cs := Or(StateFrame, DirectEmbedding(StateTypeConstraint[DirectoryState]))
 ```
 
 It uses the `constraints` package to require the element
-being nested either as top level element or as direct children
+being nested either directly on-top of the found state frame or as direct child
 of the state providing element.
 
 If a more complex composed state is required, a state extractor

@@ -54,6 +54,6 @@ func (b *Group) File(name string, mode vfs.FileMode, f ...epi.Block) {
 	if mode == 0 {
 		mode = 0660
 	}
-	cs := Or(TopLevel, Not(FrameTypeConstraint[*fileFrame]))
+	cs := Or(StateFrame, Not(FrameTypeConstraint[*fileFrame]))
 	epi.EvaluateWithState[DirectoryState](1, b.env, "File", "directory required", &fileFrame{name: name, mode: mode}, nil, cs, f)
 }

@@ -14,7 +14,7 @@ import (
 
 type Block = func()
 
-type StateExtractor[S any] func(e EnvState) (S, []Frame, bool)
+type StateExtractor[S any] func(e EnvState) (state S, inner, outer []Frame, ok bool)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -176,29 +176,37 @@ func GetFrameState[S any](frame Frame) (S, bool) {
 	return internal.GetFrameState[S](frame)
 }
 
-func GetState[S any](p EnvStateProvider, ext ...StateExtractor[S]) (S, []Frame, bool) {
+func GetState[S any](p EnvStateProvider, ext ...StateExtractor[S]) (S, bool) {
+	s, _, _, ok := GetStateAndEmbedding(p, ext...)
+	return s, ok
+}
+
+func GetStateAndEmbedding[S any](p EnvStateProvider, ext ...StateExtractor[S]) (S, []Frame, []Frame, bool) {
 	e := p.getEnvState()
-	var _nil S
-	var found []Frame
+	var state S
+	var inner []Frame
+	var outer []Frame
 
 	f := general.Optional(ext...)
 	if f != nil {
-		s, found, ok := f(e)
+		s, inner, outer, ok := f(e)
 		if ok {
-			return s, found, true
+			return s, inner, outer, true
 		}
 	}
 	frames := e.GetFrames()
+	gather := &inner
 	for i := len(frames) - 1; i >= 0; i-- {
-		if !IsStateFrame(frames[i]) && !IsDummyFrame(frames[i]) {
-			found = append(found, frames[i])
+		if IsElementFrame(frames[i]) {
+			*gather = append(*gather, frames[i])
 		}
 		s, ok := GetFrameState[S](frames[i])
-		if ok {
-			return s, found, true
+		if ok && gather == &inner {
+			state = s
+			gather = &outer
 		}
 	}
-	return _nil, nil, false
+	return state, inner, outer, true
 }
 
 type FrameProvider[S any] interface {
@@ -233,12 +241,12 @@ func CallerInfo(skip int, adjust ...int) string {
 
 func EvaluateWithState[S any](skip int, e EnvState, name, msg string, p FrameProvider[S], ext StateExtractor[S], cs contraints.Constraint, f []Block) {
 	skip++
-	s, frames, ok := GetState[S](e, ext)
+	s, inner, outer, ok := GetStateAndEmbedding[S](e, ext)
 	if !ok {
 		e.FailIfError(skip, fmt.Errorf("%s: %s", name, msg))
 	}
 	if cs != nil {
-		e.FailIfError(skip, errors.Wrap(cs(frames), name))
+		e.FailIfError(skip, errors.Wrap(cs(inner, outer), name))
 	}
 	frame, err := p.Setup(name, s)
 	e.FailIfError(skip, errors.Wrap(err, name))

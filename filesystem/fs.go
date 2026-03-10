@@ -54,7 +54,7 @@ func (g *Group) FileSystem(fs vfs.FileSystem, f ...epi.Block) {
 }
 
 func (g *Group) GetFilesystem() vfs.FileSystem {
-	fs, _, ok := epi.GetState[FilesystemState](g.env)
+	fs, ok := epi.GetState[FilesystemState](g.env)
 	if !ok {
 		return nil
 	}

@@ -68,9 +68,9 @@ func (o *mountOpt) ApplyTo(e epi.Environment) error {
 	var c *composefs.ComposedFileSystem
 	var t FilesystemState
 
-	s, _, ok := epi.GetState[*_fsState](g.env)
+	s, ok := epi.GetState[*_fsState](g.env)
 	if !ok {
-		t, _, ok = epi.GetState[FilesystemState](g.env)
+		t, ok = epi.GetState[FilesystemState](g.env)
 		if ok {
 			s = &_fsState{saveFS(t.GetFilesystem(), false)}
 		} else {

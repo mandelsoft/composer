@@ -67,6 +67,15 @@ func IsDummyFrame(f Frame) bool {
 	return ok
 }
 
+func IsInitialFrame(f Frame) bool {
+	i, ok := f.(None)
+	return ok && i.isNone()
+}
+
+func IsElementFrame(f Frame) bool {
+	return !IsDummyFrame(f) && !IsStateFrame(f) && !IsInitialFrame(f)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 func EmptyFrameProvider(None) (Frame, error) {
