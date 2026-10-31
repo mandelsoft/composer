@@ -14,9 +14,15 @@ import (
 
 type Block = func()
 
+// StateExtractor is used to extract required state from the framestack of
+// the environment state. It returns whether the state could be found,
+// the relevant inner and outer element frames (latest first) and the found
+// state.
 type StateExtractor[S any] func(e EnvState) (state S, inner, outer []Frame, ok bool)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// --- begin EnvState ---
 
 type EnvState interface {
 	Option
@@ -29,6 +35,8 @@ type EnvState interface {
 	FailIfErrorf(skip int, err error, msg string, args ...interface{})
 	Compose(block Block) (err error)
 }
+
+// --- end EnvState ---
 
 func Use(env ...EnvStateProvider) EnvState {
 	e := general.Optional(env...)
@@ -182,18 +190,11 @@ func GetState[S any](p EnvStateProvider, ext ...StateExtractor[S]) (S, bool) {
 }
 
 func GetStateAndEmbedding[S any](p EnvStateProvider, ext ...StateExtractor[S]) (S, []Frame, []Frame, bool) {
-	e := p.getEnvState()
-	var state S
-	var inner []Frame
-	var outer []Frame
+	f := general.OptionalDefaulted[StateExtractor[S]](DefaultStateExtractor, ext...)
+	return f(p.getEnvState())
+}
 
-	f := general.Optional(ext...)
-	if f != nil {
-		s, inner, outer, ok := f(e)
-		if ok {
-			return s, inner, outer, true
-		}
-	}
+func DefaultStateExtractor[S any](e EnvState) (state S, inner, outer []Frame, ok bool) {
 	frames := e.GetFrames()
 	gather := &inner
 	for i := len(frames) - 1; i >= 0; i-- {

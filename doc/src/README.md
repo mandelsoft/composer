@@ -26,7 +26,7 @@ using this framework.
 
 Error handling is done by the framework. If somewhere in the
 hierarchical code structure an error occurs the execution
-is aborted. The `Compose` call on the method gathers the error
+is aborted. The {{{env-compose}}} call on the environment gathers the error
 and provides it to its caller. As we will see later there are
 other possibilities for error handling, also.
 
@@ -66,7 +66,7 @@ is handled with `ExpectWithOffset(skip, err).To(Succeed())`
 If an environment incorporating the `filesystem` functionality
 is used, the environment is automatically configured with a 
 temporary filesystem living until `Cleanup` is called on the
-environment. (Use defer or a `AfterEach` section)
+environment. (Use defer or an `AfterEach` section)
 
 This filesystem can then be enriched by further environment options:
 - With the option `TestData()` a package-local folder `testdata` will be mounted (under the same name) on this temporary filesystem. Optionally, another path can be given as argument.
@@ -109,7 +109,7 @@ are organized in functional groups (like the one provided by the `filesystem` pa
 
 Every such package provides an own `Group` type for the locally supported elements and environment functions.
 
-A method `NewGroup(epi.EnvState)` must be offered to create an instance
+A method `NewGroup(epi.EnvState) *Group` must be offered to create an instance
 for such an embeddable group. Both together, the Group type and the
 constructor, will later be used to compose new environment types including
 arbitrary functional groups.
@@ -131,7 +131,6 @@ returning the `Group`, which is implemented by the `Group`object.
 
 A public mapping function can then be offered using this interface 
 to map any environment incorporating this group to the group object.
-
 
 ### Environments
 

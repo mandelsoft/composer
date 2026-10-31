@@ -53,6 +53,10 @@ func (g *Group) FailIfErrorWithOffsetf(skip int, err error, msg string, args ...
 	g.env.FailIfErrorf(skip+1, err, msg, args...)
 }
 
+// --- begin method compose ---
+
 func (g *Group) Compose(block Block) (err error) {
 	return g.env.Compose(block)
 }
+
+// --- end method compose ---
