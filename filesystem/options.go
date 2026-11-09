@@ -40,7 +40,7 @@ func Filesystem(fs vfs.FileSystem, cleanup ...bool) epi.Option {
 type mountOpt struct {
 	fs    vfs.FileSystem
 	path  string
-	modes []MountMode
+	modes []FileSystemModifier
 }
 
 func (o *mountOpt) ApplyTo(e epi.Environment) error {
@@ -51,14 +51,10 @@ func (o *mountOpt) ApplyTo(e epi.Environment) error {
 		return epi.ErrGroupNotSupported("filesystem")
 	}
 
-	mi := mountInfo{fs: o.fs}
-	for _, m := range o.modes {
-		mi, err = m.TransformFilesystem(mi)
-		if err != nil {
-			return err
-		}
+	fs, err := applyMountModes(o.fs, o.modes...)
+	if err != nil {
+		return err
 	}
-	fs := saveFS(mi.fs, mi.cleanup)
 
 	if o.path == "" {
 		e.AddState(&_fsState{fs: fs})
@@ -92,32 +88,34 @@ func (o *mountOpt) ApplyTo(e epi.Environment) error {
 	return c.Mount(o.path, fs)
 }
 
-type mountInfo struct {
-	fs      vfs.FileSystem
-	cleanup bool
+func applyMountModes(fs vfs.FileSystem, modes ...FileSystemModifier) (vfs.FileSystem, error) {
+	var err error
+
+	for _, m := range modes {
+		fs, err = m.TransformFilesystem(fs)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return fs, nil
 }
 
-func (i mountInfo) TransformedFilesystem(fs vfs.FileSystem, err error) (mountInfo, error) {
-	i.fs = fs
-	return i, err
-}
-
-type MountMode interface {
-	TransformFilesystem(mountInfo) (mountInfo, error)
+type FileSystemModifier interface {
+	TransformFilesystem(system vfs.FileSystem) (vfs.FileSystem, error)
 }
 
 // Mount mounts a filesystem at a given path with optional [MountMode]s.
 // The order of the modes is relevant, the modes are applied
 // sequentially in the order they are given.
 // If no filesystem is yet defined, the osfs is used as base filesystem.
-func Mount(fs vfs.FileSystem, path string, modes ...MountMode) epi.Option {
+func Mount(fs vfs.FileSystem, path string, modes ...FileSystemModifier) epi.Option {
 	return &mountOpt{fs: fs, path: path, modes: slices.Clone(modes)}
 }
 
-type mountmode func(mountInfo) (mountInfo, error)
+type mountmode func(system vfs.FileSystem) (vfs.FileSystem, error)
 
-func (m mountmode) TransformFilesystem(i mountInfo) (mountInfo, error) {
-	return m(i)
+func (m mountmode) TransformFilesystem(fs vfs.FileSystem) (vfs.FileSystem, error) {
+	return m(fs)
 }
 
 // Normal uses the filesystem as given without transformation.
@@ -131,30 +129,50 @@ var Readonly = mountmode(readonlyMode)
 var Shadowed = mountmode(shadowedMode)
 
 // Cleanup calls Cleanup of filesystem after use.
-var Cleanup = mountmode(cleanupMode)
+var Cleanup cleanupMode
+
+// NoCleanup disables Cleanup of filesystem after use.
+var NoCleanup = mountmode(nocleanupMode)
 
 // Projected creates a projection of the filesystem to a given path.
-func Projected(path string) MountMode {
-	return mountmode(func(i mountInfo) (mountInfo, error) {
-		return i.TransformedFilesystem(projectionfs.New(i.fs, path))
+func Projected(path string) FileSystemModifier {
+	return mountmode(func(fs vfs.FileSystem) (vfs.FileSystem, error) {
+		return projectionfs.New(fs, path)
 	})
 }
 
-func readonlyMode(i mountInfo) (mountInfo, error) {
-	return i.TransformedFilesystem(readonlyfs.New(i.fs), nil)
+func readonlyMode(fs vfs.FileSystem) (vfs.FileSystem, error) {
+	return readonlyfs.New(fs), nil
 }
 
-func shadowedMode(i mountInfo) (mountInfo, error) {
+func shadowedMode(fs vfs.FileSystem) (vfs.FileSystem, error) {
 	layer := memoryfs.New()
-	lfs := layerfs.New(layer, i.fs)
-	return i.TransformedFilesystem(lfs, nil)
+	lfs := layerfs.New(layer, fs)
+	return lfs, nil
 }
 
-func normalMode(i mountInfo) (mountInfo, error) {
-	return i, nil
+func normalMode(fs vfs.FileSystem) (vfs.FileSystem, error) {
+	return fs, nil
 }
 
-func cleanupMode(i mountInfo) (mountInfo, error) {
-	i.cleanup = true
-	return i, nil
+func nocleanupMode(fs vfs.FileSystem) (vfs.FileSystem, error) {
+	return saveFS(fs, false), nil
+}
+
+type cleanupMode struct {
+}
+
+var _ FileSystemModifier = cleanupMode{}
+
+func (_ cleanupMode) TransformFilesystem(fs vfs.FileSystem) (vfs.FileSystem, error) {
+	return fs, nil
+}
+
+func requireCleanup(modes ...FileSystemModifier) bool {
+	for _, m := range modes {
+		if m == Cleanup {
+			return true
+		}
+	}
+	return false
 }

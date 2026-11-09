@@ -2,7 +2,7 @@ package filesystem
 
 import (
 	"github.com/mandelsoft/composer/epi"
-	. "github.com/mandelsoft/composer/epi/contraints"
+	. "github.com/mandelsoft/composer/epi/constraints"
 	"github.com/mandelsoft/vfs/pkg/vfs"
 )
 
@@ -55,12 +55,12 @@ func (f *dirFrame) Setup(elem string, s DirectoryState) (epi.Frame, error) {
 
 // --- begin directory ---
 
-func (b *Group) Directory(name string, mode vfs.FileMode, f ...epi.Block) {
+func (g *Group) Directory(name string, mode vfs.FileMode, f ...epi.Block) {
 	if mode == 0 {
 		mode = 0660
 	}
 	cs := Or(StateFrame, DirectEmbedding(StateTypeConstraint[DirectoryState]))
-	epi.EvaluateWithState[DirectoryState](1, b.env, "Directory", "directory required", &dirFrame{name: name, mode: mode}, nil, cs, f)
+	epi.EvaluateWithState[DirectoryState](1, g.env, "Directory", "directory required", &dirFrame{name: name, mode: mode}, nil, cs, f)
 }
 
 // --- end directory ---

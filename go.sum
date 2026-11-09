@@ -42,8 +42,8 @@ github.com/mandelsoft/goutils v0.0.0-20260306190640-f824bcfda3b1 h1:CD3UyP3ESXt8
 github.com/mandelsoft/goutils v0.0.0-20260306190640-f824bcfda3b1/go.mod h1:fTCyGFCMm+ugUn1FqcHeWelCjoSYtkJaqnJvSmgkx1M=
 github.com/mandelsoft/mdref v0.5.2-0.20260315105759-5c691df9f175 h1:GKeImYUvHko9pWzRaoAbyhY52QCaT+x9RJ5SGzYN28U=
 github.com/mandelsoft/mdref v0.5.2-0.20260315105759-5c691df9f175/go.mod h1:X9R/tGN8pI236VTjr/Eh5ikzfYwaxAq8MsJjuHMUJaY=
-github.com/mandelsoft/vfs v0.4.5-0.20250514111339-d7b067920e91 h1:11lzvnGwbdzG9yURbVnBo6sLk1peCrZr4UlEQKYzb1g=
-github.com/mandelsoft/vfs v0.4.5-0.20250514111339-d7b067920e91/go.mod h1:3ODt1ze/dCdOJCbhHX8ARAw7l422fDZUhbt0wqplBRs=
+github.com/mandelsoft/vfs v0.4.5-0.20261109183711-a8c3f6f3785e h1:3r/lllevN1XnAwtDaWGjbVtsdfBfuJ+IZ29dIj36Zp4=
+github.com/mandelsoft/vfs v0.4.5-0.20261109183711-a8c3f6f3785e/go.mod h1:3ODt1ze/dCdOJCbhHX8ARAw7l422fDZUhbt0wqplBRs=
 github.com/maruel/natural v1.1.1 h1:Hja7XhhmvEFhcByqDoHz9QZbkWey+COd9xWfCfn1ioo=
 github.com/maruel/natural v1.1.1/go.mod h1:v+Rfd79xlw1AgVBjbO0BEQmptqb5HvL/k9GRHB7ZKEg=
 github.com/mfridman/tparse v0.18.0 h1:wh6dzOKaIwkUGyKgOntDW4liXSo37qg5AXbIhkMV3vE=

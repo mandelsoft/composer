@@ -21,7 +21,7 @@ func (g *Group) getEnvState() EnvState {
 
 // With adds some state to the environment processing.
 func (g *Group) With(state any, body ...Block) {
-	EvaluateWithState[None](1, g.env, "With", "", &stateFrame{state: state}, nil, nil, body)
+	EvaluateWithState[None](1, g.env, "With", "", newStateFrame(state), nil, nil, body)
 }
 
 func (g *Group) Cleanup() {
@@ -55,6 +55,7 @@ func (g *Group) FailIfErrorWithOffsetf(skip int, err error, msg string, args ...
 
 // --- begin method compose ---
 
+// Compose executes nested blocks and catches potential errors.
 func (g *Group) Compose(block Block) (err error) {
 	return g.env.Compose(block)
 }

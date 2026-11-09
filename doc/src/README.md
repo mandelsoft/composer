@@ -40,7 +40,7 @@ This framework was initially intended to be used for the creation
 of an object environment for tests, but it can be used in regular
 programs, also.
 
-When creating an environment a `FailureHandler` handler can be configured(as option for the `New` methods). THis is used to make it applicable
+When creating an environment a `FailureHandler` handler can be configured(as option for the `New` methods). This is used to make it applicable
 for test environments.
 
 The package `testenv` supports the creation of environments prepared to be used with the `ginkgo` framework. Every 
@@ -70,11 +70,11 @@ environment. (Use defer or an `AfterEach` section)
 
 This filesystem can then be enriched by further environment options:
 - With the option `TestData()` a package-local folder `testdata` will be mounted (under the same name) on this temporary filesystem. Optionally, another path can be given as argument.
- This part of the filesystem is immutable, so tests cannot change your testdata provided as part of the sources.
-- With `MutableTestData()`, the content will be mounted in a mutable way, by using a layered filesystem based on the provided 
-  testdata folder and a mutable memory layer on-top.
-- With `ProjectTestData(source)` any folder of your project can be used as test data.
-- And with `ModifiableProjectTestData(source)` you again get a mutable layer on-top of the read-only project folder.
+  This part of the filesystem is readonly, so tests cannot change your testdata provided as part of the sources. Write attempts fail with `vfs.ErrReadOnly`.
+- With `ModifiableTestData()`, the content will be mounted in a modifiable way, by using a layered filesystem based on the provided 
+  testdata folder and a modifiable memory layer on-top. Changes are never written through to the testdata folder.
+- With `ProjectTestData(source)` any folder of your project can be used as readonly test data.
+- And with `ModifiableProjectTestData(source)` you again get a modifiable memory layer on-top of the project folder.
 
 The `filesystem` functionality is based on a virtual filesystem
 provided by the [`vfs` package](https://github.com/mandelsoft/vfs).
@@ -89,7 +89,7 @@ An example can be found in [example/testenv](examples/testenv)
 
 In a `BeforeEach` function we create some filesystem enriching base
 content provided by the package folder `testdata` by adding a
-file in a new folder and another one in the testdata folder. The `testdata` folder in the project sources provides the following
+file in a new folder and another one in the modifiable testdata folder. The `testdata` folder in the project sources provides the following
 file structure:
 
 ```go
@@ -253,6 +253,21 @@ Optionally, a further embedding constraint can be given:
 It uses the `constraints` package to require the element
 being nested either directly on-top of the found state frame or as direct child
 of the state providing element.
+
+A constraint gets the element frames found on the frame stack, split at
+the found state into the `inner` frames (on-top of the state, including an
+element providing it) and the `outer` frames. Both lists are ordered latest
+to oldest and contain no pure state frames.
+
+| Constraint                 | Fulfilled if                                                        |
+|----------------------------|---------------------------------------------------------------------|
+| `StateFrame`               | there is no element frame on-top of the found state                 |
+| `TopLevel`                 | there are no element frames at all                                  |
+| `FrameTypeConstraint[F]`   | an inner frame has the type `F`                                     |
+| `StateTypeConstraint[S]`   | an inner frame implements or provides the state `S`                 |
+| `DirectEmbedding(c)`       | the next embedding element frame, only, fulfills `c`                |
+| `ApplyToFiltered(f, c)`    | `c` is fulfilled for the frames accepted by the filter `f`          |
+| `Or(...)`, `And(...)`, `Not(c)` | the logical combination of the given constraints is fulfilled  |
 
 If a more complex composed state is required, a state extractor
 can be provided. It gets access to the frame stack and can compose

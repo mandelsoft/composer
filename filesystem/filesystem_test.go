@@ -6,13 +6,14 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/mandelsoft/composer/epi"
-	"github.com/mandelsoft/composer/filesystem"
 	. "github.com/mandelsoft/goutils/testutils"
-	"github.com/mandelsoft/vfs/pkg/memoryfs"
-	"github.com/mandelsoft/vfs/pkg/vfs"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/mandelsoft/composer/epi"
+	"github.com/mandelsoft/composer/filesystem"
+	"github.com/mandelsoft/vfs/pkg/memoryfs"
+	"github.com/mandelsoft/vfs/pkg/vfs"
 )
 
 var _ = Describe("Filesystem Test Environment", func() {
@@ -55,6 +56,49 @@ var _ = Describe("Filesystem Test Environment", func() {
 			Expect(fi.Mode() & 0777).To(Equal(os.FileMode(0600)))
 
 			Expect(vfs.ReadFile(fs, "test/file")).To(Equal([]byte("this is a test file")))
+		})
+
+		It("replaces the content of an existing file", func() {
+			MustBeSuccessful(vfs.WriteFile(fs, "file", []byte("this is a longer old content"), 0o600))
+			MustBeSuccessful(env.Compose(func() {
+				env.File("file", 0600, func() {
+					env.StringContent("new content")
+				})
+			}))
+			Expect(vfs.ReadFile(fs, "file")).To(Equal([]byte("new content")))
+		})
+
+		It("appends to an existing file", func() {
+			MustBeSuccessful(vfs.WriteFile(fs, "file", []byte("old content, "), 0o600))
+			MustBeSuccessful(env.Compose(func() {
+				env.AppendFile("file", 0600, func() {
+					env.StringContent("new content")
+				})
+			}))
+			Expect(vfs.ReadFile(fs, "file")).To(Equal([]byte("old content, new content")))
+		})
+
+		It("creates a file to append to", func() {
+			MustBeSuccessful(env.Compose(func() {
+				env.AppendFile("file", 0600, func() {
+					env.StringContent("new content")
+				})
+			}))
+			fi := Must(fs.Stat("/file"))
+			Expect(fi.Mode() & 0777).To(Equal(os.FileMode(0600)))
+			Expect(vfs.ReadFile(fs, "file")).To(Equal([]byte("new content")))
+		})
+
+		It("rejects nested files", func() {
+			var info string
+			err := env.Compose(func() {
+				env.File("file", 0600, func() {
+					info = epi.CallerInfo(0, 1)
+					env.AppendFile("other", 0600)
+				})
+			})
+			Expect(err).To(MatchError(ContainSubstring("AppendFile")))
+			Expect(err).To(MatchError(ContainSubstring(info)))
 		})
 	})
 

@@ -33,20 +33,30 @@ func testData(modifiable bool, paths ...string) epi.Option {
 		panic("invalid number of arguments")
 	}
 
-	var modes []filesystem.MountMode
+	var modes []filesystem.FileSystemModifier
 	if source != "" {
 		modes = append(modes, filesystem.Projected(source))
 	}
-	if !modifiable {
+	// test data from the OS filesystem is never modified:
+	// it is either readonly or shadowed by a memory layer.
+	if modifiable {
 		modes = append(modes, filesystem.Shadowed)
+	} else {
+		modes = append(modes, filesystem.Readonly)
 	}
 	return filesystem.Mount(osfs.OsFs, path, modes...)
 }
 
+// TestData mounts the package-local folder testdata (or the given source)
+// readonly at /testdata (or the given path). Write attempts fail with
+// vfs.ErrReadOnly.
 func TestData(paths ...string) epi.Option {
 	return testData(false, paths...)
 }
 
+// ModifiableTestData mounts the package-local folder testdata (or the given
+// source) at /testdata (or the given path) with a modifiable memory layer
+// on-top. Changes are never written through to the source folder.
 func ModifiableTestData(paths ...string) epi.Option {
 	return testData(true, paths...)
 }
@@ -61,10 +71,13 @@ func projectTestData(modifiable bool, source string, dest ...string) epi.Option 
 	return testData(modifiable, pathToTestdata, general.OptionalNonZeroDefaulted("/testdata", dest...))
 }
 
+// ProjectTestData mounts a folder of the project readonly, see [TestData].
 func ProjectTestData(source string, dest ...string) epi.Option {
 	return projectTestData(false, source, dest...)
 }
 
+// ModifiableProjectTestData mounts a folder of the project with a modifiable
+// memory layer on-top, see [ModifiableTestData].
 func ModifiableProjectTestData(source string, dest ...string) epi.Option {
 	return projectTestData(true, source, dest...)
 }

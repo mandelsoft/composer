@@ -91,6 +91,10 @@ type stateFrame struct {
 
 var _ StateProvider = (*stateFrame)(nil)
 
+func newStateFrame(state any) *stateFrame {
+	return &stateFrame{state: state}
+}
+
 func (f *stateFrame) Close() error {
 	if f.state == nil {
 		return nil

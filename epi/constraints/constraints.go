@@ -1,4 +1,4 @@
-package contraints
+package constraints
 
 import (
 	"fmt"
@@ -12,7 +12,8 @@ import (
 // inner are the elements on-top of the state (inclusive),
 // and outer the elements before the state, both lists
 // are ordered latest to oldest.
-type Constraint func(inner, outer []internal.Frame) error
+// Only element frames are included.
+type Constraint = internal.Constraint
 
 // Or composes a logical OR of several constraints.
 func Or(cs ...Constraint) Constraint {
@@ -26,7 +27,7 @@ func Or(cs ...Constraint) Constraint {
 	}
 }
 
-// Or composes a logical AND of several constraints.
+// And composes a logical AND of several constraints.
 func And(cs ...Constraint) Constraint {
 	return func(inner, outer []internal.Frame) error {
 		for _, f := range cs {
@@ -38,7 +39,7 @@ func And(cs ...Constraint) Constraint {
 	}
 }
 
-// Or composes a logical NOT of a constraint.
+// Not composes a logical NOT of a constraint.
 func Not(cs Constraint) Constraint {
 	return func(inner, outer []internal.Frame) error {
 		if cs(inner, outer) == nil {
@@ -85,9 +86,9 @@ func DirectEmbedding(cs Constraint) Constraint {
 	}
 }
 
-// StateFrame checks whether it is on top of a state frame.
+// StateFrame checks whether there is no intermediate element frame on-top of the found state.
 func StateFrame(inner, outer []internal.Frame) error {
-	if len(inner) != 0 {
+	if len(inner) != 0 { // There are inner element frames
 		return fmt.Errorf("not possible as top-level element")
 	}
 	return nil
@@ -102,7 +103,7 @@ func TopLevel(inner, outer []internal.Frame) error {
 }
 
 // ApplyToFiltered filters the frames by a constraint filter, the
-// result is passed to the effectice constraint cs.
+// result is passed to the effective constraint cs.
 func ApplyToFiltered(filter Constraint, cs Constraint) Constraint {
 	return func(inner, outer []internal.Frame) error {
 		var finner []internal.Frame

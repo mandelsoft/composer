@@ -19,7 +19,7 @@ func (e *writer) Setup(elem string, s Writable) (epi.Frame, error) {
 	w := s.GetWriter()
 	data := e.data
 	for len(data) > 0 {
-		written, err := w.Write(e.data)
+		written, err := w.Write(data)
 		if err != nil {
 			return nil, err
 		}

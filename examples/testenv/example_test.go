@@ -1,14 +1,13 @@
 package main_test
 
 import (
-	"github.com/mandelsoft/composer/filesystem"
-	"github.com/mandelsoft/composer/utils"
-	"github.com/mandelsoft/goutils/testutils"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/mandelsoft/composer/filesystem"
 	"github.com/mandelsoft/composer/testenv"
+	"github.com/mandelsoft/composer/utils"
+	"github.com/mandelsoft/goutils/testutils"
 )
 
 var _ = Describe("Test Environment", func() {
@@ -17,7 +16,7 @@ var _ = Describe("Test Environment", func() {
 	BeforeEach(func() {
 		var err error
 
-		env, err = testenv.New(filesystem.New, testenv.TestData())
+		env, err = testenv.New(filesystem.New, testenv.ModifiableTestData())
 		env.Directory("testdata/test", 0770, func() {
 			env.File("additionalfile", 0660, func() {
 				env.StringContent("some temporary data not stored in OS filesystem")

@@ -5,7 +5,6 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/mandelsoft/composer/epi/contraints"
 	"github.com/mandelsoft/composer/epi/internal"
 	"github.com/mandelsoft/goutils/errors"
 	"github.com/mandelsoft/goutils/exception"
@@ -194,9 +193,26 @@ func GetStateAndEmbedding[S any](p EnvStateProvider, ext ...StateExtractor[S]) (
 	return f(p.getEnvState())
 }
 
+// OptionalStateExtractor extracts an optional state for given type parameter.
+// If no matching state can be found frame.Setup will be called with a zero state,
+// which should typically be an interface.
+func OptionalStateExtractor[S any](e EnvState) (state S, inner, outer []Frame, ok bool) {
+	return defaultStateExtractor[S](e, true)
+}
+
+// DefaultStateExtractor extracts a required state for the given parameter type.
+// Evaluation wil fail later with the requested error message and frame.Setup
+// will always be called with the found state.
+// This extractor is used, if no explicit one is passed to GetStateAndEmbedding,
+// EvaluateWithState or EvaluateLeafWithState.
 func DefaultStateExtractor[S any](e EnvState) (state S, inner, outer []Frame, ok bool) {
+	return defaultStateExtractor[S](e, false)
+}
+
+func defaultStateExtractor[S any](e EnvState, opt bool) (state S, inner, outer []Frame, ok bool) {
 	frames := e.GetFrames()
 	gather := &inner
+
 	for i := len(frames) - 1; i >= 0; i-- {
 		if IsElementFrame(frames[i]) {
 			*gather = append(*gather, frames[i])
@@ -204,10 +220,11 @@ func DefaultStateExtractor[S any](e EnvState) (state S, inner, outer []Frame, ok
 		s, ok := GetFrameState[S](frames[i])
 		if ok && gather == &inner {
 			state = s
+			opt = true
 			gather = &outer
 		}
 	}
-	return state, inner, outer, true
+	return state, inner, outer, opt
 }
 
 type FrameProvider[S any] interface {
@@ -240,7 +257,7 @@ func CallerInfo(skip int, adjust ...int) string {
 	return ""
 }
 
-func EvaluateWithState[S any](skip int, e EnvState, name, msg string, p FrameProvider[S], ext StateExtractor[S], cs contraints.Constraint, f []Block) {
+func EvaluateWithState[S any](skip int, e EnvState, name, msg string, p FrameProvider[S], ext StateExtractor[S], cs internal.Constraint, f []Block) Frame {
 	skip++
 	s, inner, outer, ok := GetStateAndEmbedding[S](e, ext)
 	if !ok {
@@ -260,9 +277,16 @@ func EvaluateWithState[S any](skip int, e EnvState, name, msg string, p FramePro
 	}
 	if general.Optional(f...) != nil {
 		e.With(skip, frame, f...)
+	} else {
+		// if frame offers persistent state for following elements,
+		// just add it to the frame stack as pure state frame
+		if p, ok := frame.(StateProvider); ok {
+			e.AddState(p.GetState())
+		}
 	}
+	return frame
 }
 
-func EvaluateLeafWithState[S any](skip int, e EnvState, name, msg string, p FrameProvider[S], ext StateExtractor[S], cs contraints.Constraint) {
+func EvaluateLeafWithState[S any](skip int, e EnvState, name, msg string, p FrameProvider[S], ext StateExtractor[S], cs internal.Constraint) {
 	EvaluateWithState[S](skip+1, e, name, msg, p, ext, cs, nil)
 }

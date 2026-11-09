@@ -12,6 +12,14 @@ type StateProvider interface {
 	GetState() any
 }
 
+// Constraint checks the frame stack down to the found state
+// whether it is applicable for an element.
+// inner are the elements on-top of the state (inclusive),
+// and outer the elements before the state, both lists
+// are ordered latest to oldest.
+// Only element frames are included.
+type Constraint func(inner, outer []Frame) error
+
 func GetFrameState[S any](frame Frame) (S, bool) {
 	var _nil S
 	t := any(frame)
