@@ -104,7 +104,7 @@ type FileSystemModifier interface {
 	TransformFilesystem(system vfs.FileSystem) (vfs.FileSystem, error)
 }
 
-// Mount mounts a filesystem at a given path with optional [MountMode]s.
+// Mount mounts a filesystem at a given path with optional [FileSystemModifier]s.
 // The order of the modes is relevant, the modes are applied
 // sequentially in the order they are given.
 // If no filesystem is yet defined, the osfs is used as base filesystem.
